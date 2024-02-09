@@ -114,6 +114,8 @@ func addrsToHosts(addrs []string, defaultPort int, logger StdLogger) ([]*HostInf
 
 // NewSession wraps an existing Node.
 func NewSession(cfg ClusterConfig) (*Session, error) {
+	cfg.logger().Println("gocql: creating session", "config", cfg)
+
 	// Check that hosts in the ClusterConfig is not empty
 	if len(cfg.Hosts) < 1 {
 		return nil, ErrNoHosts
@@ -187,6 +189,8 @@ func NewSession(cfg ClusterConfig) (*Session, error) {
 			return nil, fmt.Errorf("gocql: unable to create session: %v", err)
 		}
 	}
+
+	cfg.logger().Println("gocql: created session", "config", cfg)
 
 	return s, nil
 }
