@@ -189,12 +189,12 @@ func (s *Session) handleNodeEvent(frames []frame) {
 }
 
 func (s *Session) handleNodeUp(eventIp net.IP, eventPort int) {
-	s.logger.Printf("dbg200a: gocql: Session.handleNodeUp: %s:%d, pre pool size:%d\n",
+	s.logger.Printf("dbg200a:  gocql: Session.handleNodeUp: %s:%d, pre  pool size:%d\n",
 		eventIp.String(),
 		eventPort,
 		s.pool.Size())
 	defer func() {
-		s.logger.Printf("dbg200a: gocql: Session.handleNodeUp: %s:%d, post pool size:%d\n",
+		s.logger.Printf("dbg200b:  gocql: Session.handleNodeUp: %s:%d, post pool size:%d\n",
 			eventIp.String(),
 			eventPort,
 			s.pool.Size())
@@ -226,12 +226,12 @@ func (s *Session) startPoolFill(host *HostInfo) {
 }
 
 func (s *Session) handleNodeConnected(host *HostInfo) {
-	s.logger.Printf("dbg230a: gocql: Session.handleNodeConnected: %s:%d, pre pool size:%d\n",
+	s.logger.Printf("dbg230a:  gocql: Session.handleNodeConnected: %s:%d, pre  pool size:%d\n",
 		host.ConnectAddress(),
 		host.Port(),
 		s.pool.Size())
 	defer func() {
-		s.logger.Printf("dbg230a: gocql: Session.handleNodeConnected: %s:%d, post pool size:%d\n",
+		s.logger.Printf("dbg230b:  gocql: Session.handleNodeConnected: %s:%d, post pool size:%d\n",
 			host.ConnectAddress(),
 			host.Port(),
 			s.pool.Size())
@@ -249,18 +249,18 @@ func (s *Session) handleNodeConnected(host *HostInfo) {
 }
 
 func (s *Session) handleNodeDown(ip net.IP, port int) {
-	s.logger.Printf("dbg250a: gocql: Session.handleNodeDown: %s:%d, pre pool size:%d\n",
+	s.logger.Printf("dbg250a:  gocql: Session.handleNodeDown: %s:%d, pre  pool size:%d\n",
 		ip.String(),
 		port,
 		s.pool.Size())
 	defer func() {
-		s.logger.Printf("dbg250a: gocql: Session.handleNodeDown: %s:%d, post pool size:%d\n",
+		s.logger.Printf("dbg250b:  gocql: Session.handleNodeDown: %s:%d, post pool size:%d\n",
 			ip.String(),
 			port,
 			s.pool.Size())
 	}()
 	if gocqlDebug {
-		s.logger.Printf("gocql: Session.handleNodeDown: %s:%d\n", ip.String(), port)
+		s.logger.Printf("gocql:  Session.handleNodeDown: %s:%d\n", ip.String(), port)
 	}
 
 	host, ok := s.ring.getHostByIP(ip.String())
