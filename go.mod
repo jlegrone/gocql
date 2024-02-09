@@ -10,4 +10,4 @@ require (
 	gopkg.in/inf.v0 v0.9.1
 )
 
-go 1.21
+go 1.13

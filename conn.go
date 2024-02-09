@@ -511,6 +511,17 @@ func (c *Conn) closeWithError(err error) {
 	}
 	c.closed = true
 
+	c.logger.Printf("gocql: Conn.closeWithError : addr:%v, timeout:%d, writeTimeout:%d, ConnConfig.Timeout:%v, ConnConfig.WriteTimeout:%v, ConnConfig.ConnectTimeout:%v, outstanding call requests:%d, outstanding streams:%d, num timeouts:%d\n",
+		c.addr,
+		c.timeout,
+		c.writeTimeout,
+		c.cfg.Timeout,
+		c.cfg.WriteTimeout,
+		c.cfg.ConnectTimeout,
+		len(c.calls),
+		c.streams.InUseStreams(),
+		c.timeouts)
+
 	var callsToClose map[int]*callReq
 
 	// We should attempt to deliver the error back to the caller if it
@@ -522,18 +533,6 @@ func (c *Conn) closeWithError(err error) {
 		c.calls = nil
 	}
 	c.mu.Unlock()
-
-	c.logger.Printf("dbg500:   gocql: Conn.closeWithError : addr:%v, c.timeout:%.3fs, c.writeTimeout:%.3fs, c.cfg.Timeout:%.3fs, c.cfg.WriteTimeout:%.3fs, c.cfg.ConnectTimeout:%.3fs, outstanding call requests:%d, outstanding streams:%d, num timeouts:%d, err:%v\n",
-		c.addr,
-		c.timeout.Seconds(),
-		c.writeTimeout.Seconds(),
-		c.cfg.Timeout.Seconds(),
-		c.cfg.WriteTimeout.Seconds(),
-		c.cfg.ConnectTimeout.Seconds(),
-		len(callsToClose),
-		c.streams.InUseStreams(),
-		c.timeouts,
-		err)
 
 	for _, req := range callsToClose {
 		// we need to send the error to all waiting queries.
@@ -1021,34 +1020,25 @@ func (c *Conn) addCall(call *callReq) error {
 	return nil
 }
 
-func dbgGetTimeoutFromCtx(ctx context.Context) time.Duration {
-	var timeout time.Duration
-	if ctx != nil {
-		if deadline, ok := ctx.Deadline(); ok {
-			timeout = time.Until(deadline)
-		}
-	}
-	return timeout
-}
-
 func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*framer, error) {
 
-	c.mu.Lock()
-	dbgNumCalls := len(c.calls)
-	c.mu.Unlock()
-
-	c.logger.Printf("dbg1024a: gocql: Conn.exec, beg, addr:%s, c.timeout:%.3fs, c.writeTimeout:%.3fs, ctx timeout:%.3fs, outstanding call requests:%d, in use streams:%d, num timeouts:%d\n",
+	var dbgDeadlineDuration time.Duration
+	dbgDeadline, dbgOk := ctx.Deadline()
+	if dbgOk {
+		dbgDeadlineDuration = time.Until(dbgDeadline)
+	}
+	c.logger.Printf("dbg1024a: gocql: Conn.exec, beg, addr:%s, timeout:%v, writeTimeout:%d, deadlineDuration:%v, outstanding call requests:%d, in use streams:%d, num timeouts:%d\n",
 		c.addr,
-		c.timeout.Seconds(),
-		c.writeTimeout.Seconds(),
-		dbgGetTimeoutFromCtx(ctx).Seconds(),
-		dbgNumCalls,
+		c.timeout,
+		c.writeTimeout,
+		dbgDeadlineDuration,
+		len(c.calls),
 		c.streams.InUseStreams(),
 		c.timeouts)
 
 	var dbgLoggingStream int
 	defer func() {
-		c.logger.Printf("dbg1024d: gocql: Conn.exec, end, addr:%s, stream:%d\n",
+		c.logger.Printf("dbg1024c: gocql: Conn.exec, end, addr:%s, stream:%d\n",
 			c.addr,
 			dbgLoggingStream)
 	}()
@@ -1112,18 +1102,12 @@ func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*fram
 		return nil, err
 	}
 
-	// This is the first write. Everything above should not block, and below might block.
+	dbgLoggingStream = framer.header.stream
+	c.logger.Printf("dbg1024b: gocql: Conn.exec: mid, addr:%s, stream:%d, about to write to network\n",
+		c.addr,
+		dbgLoggingStream)
 
-	if framer != nil && framer.header != nil {
-		dbgLoggingStream = framer.header.stream
-	}
-	c.logger.Printf("dbg1024b: gocql: Conn.exec: mid, addr:%s, stream:%d, pre  write to network\n",
-		c.addr,
-		dbgLoggingStream)
 	n, err := c.w.writeContext(ctx, framer.buf)
-	c.logger.Printf("dbg1024c: gocql: Conn.exec: mid, addr:%s, stream:%d, post write to network\n",
-		c.addr,
-		dbgLoggingStream)
 	if err != nil {
 		// closeWithError will block waiting for this stream to either receive a response
 		// or for us to timeout, close the timeout chan here. Im not entirely sure
@@ -1174,16 +1158,6 @@ func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*fram
 		ctxDone = ctx.Done()
 	}
 
-	// This is where we block for the reply or timeout.
-	// service calls recv, which reads a frame and calls the response callback.
-	// Or recv might never get data and call.resp might never get populated.
-
-	c.logger.Printf("dbg1024c: gocql: Conn.exec: mid, addr:%s, stream:%d, pre read from network, ctx timeout:%.3fs, conn.ctx timeout:%.3fs\n",
-		c.addr,
-		dbgLoggingStream,
-		dbgGetTimeoutFromCtx(ctx).Seconds(),
-		dbgGetTimeoutFromCtx(c.ctx).Seconds())
-
 	select {
 	case resp := <-call.resp:
 		close(call.timeout)
@@ -1211,16 +1185,13 @@ func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*fram
 
 		return resp.framer, nil
 	case <-timeoutCh:
-		c.logger.Printf("dbg1190: conn.Exec: exit timeout, err:%v\n", ErrTimeoutNoResponse)
 		close(call.timeout)
 		c.handleTimeout()
 		return nil, ErrTimeoutNoResponse
 	case <-ctxDone:
-		c.logger.Printf("dbg1190: conn.Exec: exit ctxDone, err:%v\n", ctx.Err())
 		close(call.timeout)
 		return nil, ctx.Err()
 	case <-c.ctx.Done():
-		c.logger.Printf("dbg1190: conn.Exec: exit c.ctx.Done, err:%v\n", ErrConnectionClosed)
 		close(call.timeout)
 		return nil, ErrConnectionClosed
 	}

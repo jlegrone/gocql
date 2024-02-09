@@ -318,8 +318,7 @@ func (s *Session) init() error {
 			break
 		}
 	}
-	//s.logger.Println("gocql: host connection readiness achieved", "policy", s.policy)
-	s.logger.Println("gocql: host connection readiness achieved")
+	s.logger.Println("gocql: host connection readiness achieved", "policy", s.policy)
 
 	// TODO(zariel): we probably dont need this any more as we verify that we
 	// can connect to one of the endpoints supplied by using the control conn.
