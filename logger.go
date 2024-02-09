@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"runtime"
 )
 
 type StdLogger interface {
@@ -31,9 +32,22 @@ func (l *testLogger) String() string                         { return l.capture.
 
 type defaultLogger struct{}
 
-func (l *defaultLogger) Print(v ...interface{})                 { log.Print(v...) }
-func (l *defaultLogger) Printf(format string, v ...interface{}) { log.Printf(format, v...) }
-func (l *defaultLogger) Println(v ...interface{})               { log.Println(v...) }
+func (l *defaultLogger) Print(v ...interface{}) {
+	args := append([]any{getFileAndLine()}, v...)
+	log.Print(args...)
+}
+func (l *defaultLogger) Printf(format string, v ...interface{}) {
+	log.Printf(getFileAndLine()+" "+format, v...)
+}
+func (l *defaultLogger) Println(v ...interface{}) {
+	args := append([]any{getFileAndLine()}, v...)
+	log.Println(args...)
+}
+
+func getFileAndLine() string {
+	_, filename, line, _ := runtime.Caller(2)
+	return fmt.Sprintf("%s:%d:", filename, line)
+}
 
 // Logger for logging messages.
 // Deprecated: Use ClusterConfig.Logger instead.
