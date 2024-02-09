@@ -140,5 +140,5 @@ func (s *IDGenerator) Available() int {
 }
 
 func (s *IDGenerator) InUseStreams() int32 {
-	return s.inuseStreams
+	return atomic.LoadInt32(&s.inuseStreams)
 }
