@@ -511,6 +511,17 @@ func (c *Conn) closeWithError(err error) {
 	}
 	c.closed = true
 
+	c.logger.Printf("gocql: Conn.closeWithError : addr:%v, timeout:%d, writeTimeout:%d, ConnConfig.Timeout:%v, ConnConfig.WriteTimeout:%v, ConnConfig.ConnectTimeout:%v, outstanding call requests:%d, outstanding streams:%d, num timeouts:%d\n",
+		c.addr,
+		c.timeout,
+		c.writeTimeout,
+		c.cfg.Timeout,
+		c.cfg.WriteTimeout,
+		c.cfg.ConnectTimeout,
+		len(c.calls),
+		c.streams.InUseStreams(),
+		c.timeouts)
+
 	var callsToClose map[int]*callReq
 
 	// We should attempt to deliver the error back to the caller if it
@@ -681,11 +692,13 @@ func (c *Conn) recv(ctx context.Context) error {
 		// or a bug in Cassandra, this should be an error, parse it and return.
 		framer := newFramer(c.compressor, c.version)
 		if err := framer.readFrame(c, &head); err != nil {
+			c.logger.Printf("dbg700: conn.recv: exit read frame\n")
 			return err
 		}
 
 		frame, err := framer.parseFrame()
 		if err != nil {
+			c.logger.Printf("dbg700: conn.recv: exit frame parse\n")
 			return err
 		}
 
@@ -697,6 +710,7 @@ func (c *Conn) recv(ctx context.Context) error {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
+		c.logger.Printf("dbg710: conn.recv: exit conn closed\n")
 		return ErrConnectionClosed
 	}
 	call, ok := c.calls[head.stream]
@@ -715,6 +729,7 @@ func (c *Conn) recv(ctx context.Context) error {
 	if err != nil {
 		// only net errors should cause the connection to be closed. Though
 		// cassandra returning corrupt frames will be returned here as well.
+		c.logger.Printf("dbg730: conn.recv: got err: %v\n", err)
 		if _, ok := err.(net.Error); ok {
 			return err
 		}
@@ -726,7 +741,9 @@ func (c *Conn) recv(ctx context.Context) error {
 	case call.resp <- callResp{framer: framer, err: err}:
 	case <-call.timeout:
 		c.releaseStream(call)
+		c.logger.Printf("dbg750: conn.recv: exit timeout\n")
 	case <-ctx.Done():
+		c.logger.Printf("dbg750: conn.recv: exit Done\n")
 	}
 
 	return nil
@@ -1004,6 +1021,28 @@ func (c *Conn) addCall(call *callReq) error {
 }
 
 func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*framer, error) {
+
+	var dbgDeadlineDuration time.Duration
+	dbgDeadline, dbgOk := ctx.Deadline()
+	if dbgOk {
+		dbgDeadlineDuration = time.Until(dbgDeadline)
+	}
+	c.logger.Printf("dbg1024a: gocql: Conn.exec, beg, addr:%s, timeout:%v, writeTimeout:%d, deadlineDuration:%v, outstanding call requests:%d, in use streams:%d, num timeouts:%d\n",
+		c.addr,
+		c.timeout,
+		c.writeTimeout,
+		dbgDeadlineDuration,
+		len(c.calls),
+		c.streams.InUseStreams(),
+		c.timeouts)
+
+	var dbgLoggingStream int
+	defer func() {
+		c.logger.Printf("dbg1024c: gocql: Conn.exec, end, addr:%s, stream:%d\n",
+			c.addr,
+			dbgLoggingStream)
+	}()
+
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
 	}
@@ -1062,6 +1101,11 @@ func (c *Conn) exec(ctx context.Context, req frameBuilder, tracer Tracer) (*fram
 		c.releaseStream(call)
 		return nil, err
 	}
+
+	dbgLoggingStream = framer.header.stream
+	c.logger.Printf("dbg1024b: gocql: Conn.exec: mid, addr:%s, stream:%d, about to write to network\n",
+		c.addr,
+		dbgLoggingStream)
 
 	n, err := c.w.writeContext(ctx, framer.buf)
 	if err != nil {
