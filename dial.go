@@ -46,10 +46,12 @@ func (hd *defaultHostDialer) DialHost(ctx context.Context, host *HostInfo) (*Dia
 	}
 
 	connAddr := host.ConnectAddressAndPort()
+	fmt.Println("gocql: dialing address", "addr", connAddr, "host", host)
 	conn, err := hd.dialer.DialContext(ctx, "tcp", connAddr)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("gocql: established connection to address", "addr", connAddr, "host", host)
 	addr := host.HostnameAndPort()
 	return WrapTLS(ctx, conn, addr, hd.tlsConfig)
 }

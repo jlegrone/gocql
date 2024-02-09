@@ -269,13 +269,16 @@ func (s *Session) init() error {
 
 		atomic.AddInt64(&left, 1)
 		go func() {
+			s.logger.Println("gocql: adding host to pool", "connection address", host.ConnectAddress(), "host", host)
 			s.pool.addHost(host)
 			connectedCh <- struct{}{}
+			s.logger.Println("gocql: host connected", "connection address", host.ConnectAddress(), "host", host)
 
 			// if there are no hosts left, then close the hostCh to unblock the loop
 			// below if its still waiting
 			if atomic.AddInt64(&left, -1) == 0 {
 				close(connectedCh)
+				s.logger.Println("gocql: all hosts connected; closed connectedCh")
 			}
 		}()
 
@@ -293,13 +296,16 @@ func (s *Session) init() error {
 		AddHosts([]*HostInfo)
 	}
 	if v, ok := s.policy.(bulkAddHosts); ok {
+		s.logger.Println("gocql: bulk adding hosts", "hosts", hosts)
 		v.AddHosts(hosts)
 	} else {
 		for _, host := range hosts {
+			s.logger.Println("gocql: adding host", "connection address", host.ConnectAddress())
 			s.policy.AddHost(host)
 		}
 	}
 
+	s.logger.Println("gocql: waiting for host connection readiness", "policy", s.policy)
 	readyPolicy, _ := s.policy.(ReadyPolicy)
 	// now loop over connectedCh until it's closed (meaning we've connected to all)
 	// or until the policy says we're ready
@@ -308,6 +314,7 @@ func (s *Session) init() error {
 			break
 		}
 	}
+	s.logger.Println("gocql: host connection readiness achieved", "policy", s.policy)
 
 	// TODO(zariel): we probably dont need this any more as we verify that we
 	// can connect to one of the endpoints supplied by using the control conn.
@@ -368,6 +375,7 @@ func (s *Session) reconnectDownedHosts(intv time.Duration) {
 	for {
 		select {
 		case <-reconnectTicker.C:
+			s.logger.Println("gocql: ringing all hosts")
 			hosts := s.ring.allHosts()
 
 			// Print session.ring for debug.
@@ -383,8 +391,10 @@ func (s *Session) reconnectDownedHosts(intv time.Duration) {
 				if h.IsUp() {
 					continue
 				}
+				s.logger.Println("gocql: found down host", "connection address", h.ConnectAddress(), "host", h)
 				// we let the pool call handleNodeConnected to change the host state
 				s.pool.addHost(h)
+				s.logger.Println("gocql: added down host to pool", "connection address", h.ConnectAddress(), "host", h)
 			}
 		case <-s.ctx.Done():
 			return
