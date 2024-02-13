@@ -235,6 +235,7 @@ func (s *Session) dial(ctx context.Context, host *HostInfo, connConfig *ConnConf
 func (s *Session) dialWithoutObserver(ctx context.Context, host *HostInfo, cfg *ConnConfig, errorHandler ConnErrorHandler) (*Conn, error) {
 	dialedHost, err := cfg.HostDialer.DialHost(ctx, host)
 	if err != nil {
+		s.logger.Println("gocql: got error dialing host", "host", host, "error", err)
 		return nil, err
 	}
 
@@ -272,6 +273,7 @@ func (s *Session) dialWithoutObserver(ctx context.Context, host *HostInfo, cfg *
 	}
 
 	if err := c.init(ctx, dialedHost); err != nil {
+		s.logger.Println("gocql: got error initializing connection", "host", host, "error", err)
 		cancel()
 		c.Close()
 		return nil, err
