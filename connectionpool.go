@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -557,6 +558,10 @@ func (pool *hostConnPool) connect() (err error) {
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				pool.logger.Println("gocql: connection failed with context.DeadlineExceeded", "host", pool.host)
+				break
+			}
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				pool.logger.Println("gocql: connection failed with os.ErrDeadlineExceeded", "host", pool.host)
 				break
 			}
 		}
