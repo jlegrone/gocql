@@ -550,6 +550,7 @@ func (pool *hostConnPool) connect() (err error) {
 		if opErr, isOpErr := err.(*net.OpError); isOpErr {
 			// if the error is not a temporary error (ex: network unreachable) don't
 			//  retry
+			pool.logger.Printf("gocql: connection failed with net.OpError", "host", pool.host, "error", opErr)
 			if !opErr.Temporary() {
 				break
 			}
