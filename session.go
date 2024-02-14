@@ -200,6 +200,7 @@ func (s *Session) init() error {
 	if err != nil {
 		return err
 	}
+	s.logger.Println("gocql: initial hosts", "hosts", hosts)
 	s.ring.endpoints = hosts
 
 	if !s.cfg.disableControlConn {
@@ -230,6 +231,7 @@ func (s *Session) init() error {
 			s.policy.SetPartitioner(partitioner)
 			filteredHosts := make([]*HostInfo, 0, len(newHosts))
 			for _, host := range newHosts {
+				s.logger.Println("gocql: discovered host", "host", host)
 				if !s.cfg.filterHost(host) {
 					filteredHosts = append(filteredHosts, host)
 				}

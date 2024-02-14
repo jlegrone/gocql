@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"strings"
 )
 
 type StdLogger interface {
@@ -46,7 +47,8 @@ func (l *defaultLogger) Println(v ...interface{}) {
 
 func getFileAndLine() string {
 	_, filename, line, _ := runtime.Caller(2)
-	return fmt.Sprintf("%s:%d:", filename, line)
+	shortFileName := strings.Replace(filename, "external/com_github_gocql_gocql", "gocql", 1)
+	return fmt.Sprintf("%s:%d:", shortFileName, line)
 }
 
 // Logger for logging messages.
