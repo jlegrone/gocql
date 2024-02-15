@@ -114,7 +114,7 @@ func addrsToHosts(addrs []string, defaultPort int, logger StdLogger) ([]*HostInf
 
 // NewSession wraps an existing Node.
 func NewSession(cfg ClusterConfig) (*Session, error) {
-	cfg.logger().Println("gocql: creating session", "config", cfg)
+	cfg.logger().Println("gocql: creating session", "config", fmt.Sprintf("%+v", cfg))
 
 	// Check that hosts in the ClusterConfig is not empty
 	if len(cfg.Hosts) < 1 {
@@ -223,6 +223,7 @@ func (s *Session) init() error {
 		}
 
 		if !s.cfg.DisableInitialHostLookup {
+			s.logger.Println("gocql: discovering hosts from system.peers")
 			var partitioner string
 			newHosts, partitioner, err := s.hostSource.GetHosts()
 			if err != nil {
